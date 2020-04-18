@@ -176,17 +176,21 @@ func (_ *markdownRenderer) BlockHtml(w io.Writer, text []byte) {
 	w.Write(text)
 	w.Write([]byte{'\n'})
 }
+
 func (mr *markdownRenderer) Header(w io.Writer, node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 	if entering {
 		doubleSpace(w)
 	}
 
 	level := node.HeadingData.Level
-	if level >= 3 {
+	if mr.opt.HashHeaders || level >= 3 {
 		if entering {
+			if node.Prev != nil && node.Prev.Type != blackfriday.Heading {
+				w.Write([]byte("\n"))
+			}
 			fmt.Fprint(w, strings.Repeat("#", level), " ")
 		} else {
-			w.Write([]byte{'\n'})
+			w.Write([]byte("\n\n"))
 		}
 		return blackfriday.GoToNext
 	} else {
@@ -543,7 +547,8 @@ func NewRenderer(opt *Options) blackfriday.Renderer {
 // Options specifies options for formatting.
 type Options struct {
 	// Terminal specifies if ANSI escape codes are emitted for styling.
-	Terminal bool
+	Terminal    bool
+	HashHeaders bool
 }
 
 // Process formats Markdown.
