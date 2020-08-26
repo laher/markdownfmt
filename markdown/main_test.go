@@ -2,6 +2,8 @@ package markdown_test
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/laher/markdownfmt/markdown"
+	"github.com/russross/blackfriday/v2"
 )
 
 func Example() {
@@ -227,10 +230,12 @@ Nested Lists
 
 -	list1
 
-	` + "```" + `C
+` + "```" + `C
 	if (i == 5)
 	    break;
-	` + "```" + `
+` + "```" + `
+
+-	list2
 
 ### Blockquote within list
 
@@ -289,6 +294,8 @@ func Test(t *testing.T) {
 
 	if len(diff) != 0 {
 		t.Errorf("Difference of %d lines:\n%s", bytes.Count(diff, []byte("\n")), string(diff))
+		node := genAST([]byte(reference))
+		printAST(os.Stdout, node)
 	}
 }
 
@@ -497,4 +504,54 @@ func diff(b1, b2 []byte) (data []byte, err error) {
 		err = nil
 	}
 	return
+}
+
+func genAST(text []byte) *blackfriday.Node {
+	opt := &markdown.Options{}
+
+	const extensions = blackfriday.NoIntraEmphasis |
+		blackfriday.Tables |
+		blackfriday.FencedCode |
+		blackfriday.Autolink |
+		blackfriday.Strikethrough |
+		blackfriday.SpaceHeadings |
+		blackfriday.NoEmptyLineBeforeBlock
+
+	//output := blackfriday.Run(text, blackfriday.WithRenderer(markdown.NewRenderer(opt)), blackfriday.WithExtensions(extensions))
+
+	optList := []blackfriday.Option{blackfriday.WithRenderer(markdown.NewRenderer(opt)), blackfriday.WithExtensions(blackfriday.CommonExtensions)}
+	optList = append(optList, blackfriday.WithExtensions(extensions))
+	parser := blackfriday.New(optList...)
+	ast := parser.Parse(text)
+	return ast
+}
+
+func printAST(w io.Writer, node *blackfriday.Node) {
+	indent := 0
+	f := func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+		if entering {
+			fmt.Print("\n")
+			for p := node.Parent; p != nil; p = p.Parent {
+				fmt.Print(" ")
+			}
+			//fmt.Print(strings.Repeat(" ", indent))
+			//if node.Prev != nil {
+			//	fmt.Print(",")
+			//}
+
+			fmt.Printf("%v%d: [%v]", node.Type, node.Level, string(node.Literal))
+
+			if node.FirstChild != nil {
+				indent += 1
+			}
+		} else {
+			if node.FirstChild != nil {
+				indent -= 1
+			}
+
+		}
+		return blackfriday.GoToNext
+	}
+	node.Walk(f)
+	fmt.Println()
 }
